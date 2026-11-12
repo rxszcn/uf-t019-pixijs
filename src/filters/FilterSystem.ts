@@ -233,7 +233,19 @@ export class FilterSystem implements System
 
         this._calculateFilterArea(instruction, bounds);
 
-        this._calculateFilterBounds(filterData, renderer.renderTarget.rootViewPort, rootAntialias, rootResolution, 1);
+        // the root viewport is measured in the root render target's pixels, so the resolution that
+        // scales it into the global coordinate space of the bounds is the root target's own - not the
+        // current target's, which an enclosing filter may have raised above (or dropped below) it
+        const viewPortResolution = renderer.renderTarget.rootRenderTarget.colorTexture.source.resolution;
+
+        this._calculateFilterBounds(
+            filterData,
+            renderer.renderTarget.rootViewPort,
+            viewPortResolution,
+            rootAntialias,
+            rootResolution,
+            1
+        );
 
         if (filterData.skip)
         {
@@ -305,7 +317,8 @@ export class FilterSystem implements System
         bounds.clear();
         bounds.addRect(texture.frame);
 
-        this._calculateFilterBounds(filterData, bounds.rectangle, rootAntialias, rootResolution, 0);
+        // the texture frame is already in the same coordinate space as the bounds, so its resolution is 1
+        this._calculateFilterBounds(filterData, bounds.rectangle, 1, rootAntialias, rootResolution, 0);
 
         if (filterData.skip)
         {
@@ -892,6 +905,9 @@ export class FilterSystem implements System
     private _calculateFilterBounds(
         filterData: FilterData,
         viewPort: Rectangle,
+        // the resolution the viewport is measured at - the bounds are in global coordinates,
+        // so the viewport is scaled down by this to clip them in the same space
+        viewPortResolution: number,
         rootAntialias: boolean,
         rootResolution: number,
         // a multiplier padding for the bounds calculation
@@ -988,7 +1004,7 @@ export class FilterSystem implements System
         // handled by the viewport on the gpu.
         if (clipToViewport)
         {
-            bounds.fitBounds(0, viewPort.width / rootResolution, 0, viewPort.height / rootResolution);
+            bounds.fitBounds(0, viewPort.width / viewPortResolution, 0, viewPort.height / viewPortResolution);
         }
 
         // round the bounds to the nearest pixel
